@@ -6,22 +6,22 @@ import com.javanauta.usuario.infrastructure.entity.Usuario;
 import com.javanauta.usuario.infrastructure.exceptions.COnflictException;
 import com.javanauta.usuario.infrastructure.exceptions.ResourceNotFoundException;
 import com.javanauta.usuario.infrastructure.repository.UsuarioRepository;
+import com.javanauta.usuario.infrastructure.security.JwtUtil;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 
 @Service
+@RequiredArgsConstructor
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final UsuarioConverter usuarioConverter;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, UsuarioConverter usuarioConverter, PasswordEncoder passwordEncoder) {
-        this.usuarioRepository = usuarioRepository;
-        this.usuarioConverter = usuarioConverter;
-        this.passwordEncoder = passwordEncoder;
-    }
+
 
     public UsuarioDTO salvaUsuario(UsuarioDTO usuarioDTO){
         emailExiste(usuarioDTO.getEmail());
@@ -53,5 +53,18 @@ public class UsuarioService {
 
     public void deletaUsuarioPorEmail(String email){
         usuarioRepository.deleteByEmail(email);
+    }
+
+    public UsuarioDTO atualizarDadosUsuario(String token, UsuarioDTO dto){
+        // Aqui buscamos o email do usuário através do token (tirando a obrigatoriedade do email)
+        String email = jwtUtil.extrairEmailToken(token.substring(7));
+        //Criptografia da senha
+        dto.setSenha(dto.getSenha() != null ? passwordEncoder.encode(dto.getSenha()) : null);
+        //Buscamos os dados do usuário no banco de dados
+        Usuario usuarioEntity = usuarioRepository.findByEmail(email).orElseThrow(() ->
+                new ResourceNotFoundException("Email não localizado"));
+        //Mesclou os dados que recebemos na requisição DTO  com os dados do banco de dados
+        Usuario usuario = usuarioConverter.atualizarUsuario(dto, usuarioEntity);
+        return usuarioConverter.paraUsuarioDTO(usuarioRepository.save(usuario));
     }
 }
